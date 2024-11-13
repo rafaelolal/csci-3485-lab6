@@ -51,8 +51,6 @@ class UNet(Module):
         x1 = self.relu(self.cl1(x))
         x1 = self.relu(self.cl2(x1))
 
-        print("my x1", x1.shape)
-
         x2 = self.max_pool(x1)
 
         x2 = self.relu(self.cl3(x2))
@@ -74,12 +72,8 @@ class UNet(Module):
 
         x5 = cat([x5, x1], dim=1)
 
-        print("my x5", x5.shape)
-
         x5 = self.relu(self.cl9(x5))
         x5 = self.relu(self.cl10(x5))
-
-        print("my x5", x5.shape)
 
         return x5
 
@@ -183,11 +177,6 @@ class Autoencoder:
 
                 latent = self.encoder(noise_image)
                 output = self.decoder(latent)
-
-                print("my shape")
-                print("latent shape", latent.shape)
-                print("output shape", output.shape)
-                print("gt_image shape", gt_image.shape)
 
                 loss = loss_function(output, gt_image)
                 optimizer.zero_grad()
