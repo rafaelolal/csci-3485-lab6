@@ -2,8 +2,10 @@
 Manages the data for the experiments.
 """
 
+from os import path
 from random import randint
 
+import matplotlib.pyplot as plt
 from torch import Tensor, clamp, randn_like
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision.datasets import MNIST
@@ -36,7 +38,7 @@ class NoisyMNISTDataset(Dataset):
     def __getitem__(self, i) -> tuple[Tensor, Tensor]:
         image, label = self.dataset[i]
 
-        # generate noise of image size scaled by self.noise
+        # generate noise of same image size scaled by self.noise
         noise = randn_like(image) * self.noise
         noisy_image = image + noise
         # maintain range from 0-1
@@ -79,3 +81,19 @@ def append_to_file(filename: str, data: any) -> None:
 
     with open(filename, "a") as file:
         file.write(str(data) + "\n")
+
+
+def save_image(image, title, folder):
+    # reshape and convert to numpy for plotting
+    image = image.reshape(28, 28).detach().cpu().numpy()
+
+    # create the plot
+    plt.figure(figsize=(5, 5))
+    plt.imshow(image, cmap="gray")
+    plt.title(f"{title}")
+    plt.axis("off")
+
+    # save the image
+    filename = f"{title.lower().replace(" ", "_")}.png"
+    plt.savefig(path.join(folder, filename))
+    plt.close()

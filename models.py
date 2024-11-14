@@ -21,7 +21,7 @@ from torchvision.transforms import ToTensor
 from data import get_data_loaders
 
 
-class UNet(Module):
+class UNetModel(Module):
     def __init__(self) -> None:
         super().__init__()
 
@@ -77,9 +77,10 @@ class UNet(Module):
 
         return x5
 
-    def set_model(self, device: str):
-        self.device = device
-        self.model = UNet().to(device)
+
+class UNet:
+    def set_model(self) -> None:
+        self.model = UNetModel()
 
     def set_data(self, noise: float, size: int) -> None:
         self.train_loader, self.test_loader = get_data_loaders(
@@ -88,7 +89,8 @@ class UNet(Module):
             transform=[ToTensor()],
         )
 
-    def my_train(self, epochs: int) -> None:
+    def my_train(self, device: str, epochs: int) -> None:
+        self.model.to(device)
         self.model.train()
 
         optimizer = Adam(self.model.parameters(), lr=1e-3)
@@ -96,8 +98,8 @@ class UNet(Module):
 
         for _ in range(epochs):
             for noise_image, image in self.train_loader:
-                noise_image = noise_image.to(self.device)
-                image = image.to(self.device)
+                noise_image = noise_image.to(device)
+                image = image.to(device)
 
                 output = self.model(noise_image)
                 loss = loss_function(output, image)
@@ -107,17 +109,18 @@ class UNet(Module):
                 optimizer.step()
 
     @no_grad()
-    def test(self) -> float:
+    def test(self, device: str) -> float:
+        self.model.to(device)
         self.model.eval()
 
         loss = 0
         loss_function = MSELoss()
 
-        for noise_image, gt_image in self.test_loader:
-            noise_image = noise_image.to(self.device)
-            gt_image = gt_image.to(self.device)
+        for noisy_image, gt_image in self.test_loader:
+            noisy_image = noisy_image.to(device)
+            gt_image = gt_image.to(device)
 
-            output = self.model(noise_image)
+            output = self.model(noisy_image)
 
             loss += loss_function(output, gt_image)
 
@@ -131,9 +134,7 @@ class Autoencoder:
     ) -> None:
         pass
 
-    def set_model(self, device: str) -> None:
-        self.device = device
-
+    def set_model(self) -> None:
         self.encoder = Sequential(
             Flatten(),
             Linear(784, 112),
@@ -142,7 +143,7 @@ class Autoencoder:
             ReLU(),
             Linear(56, 28),
             ReLU(),
-        ).to(device)
+        )
 
         self.decoder = Sequential(
             Linear(28, 56),
@@ -151,7 +152,7 @@ class Autoencoder:
             ReLU(),
             Linear(112, 784),
             Sigmoid(),
-        ).to(device)
+        )
 
     def set_data(self, noise: float, size: int) -> None:
         self.train_loader, self.test_loader = get_data_loaders(
@@ -160,7 +161,9 @@ class Autoencoder:
             size=size,
         )
 
-    def train(self, epochs: int) -> None:
+    def train(self, device: str, epochs: int) -> None:
+        self.encoder.to(device)
+        self.decoder.to(device)
         self.encoder.train()
         self.decoder.train()
 
@@ -170,12 +173,12 @@ class Autoencoder:
         loss_function = MSELoss()
 
         for _ in range(epochs):
-            for noise_image, gt_image in self.train_loader:
-                noise_image = noise_image.to(self.device)
-                gt_image = gt_image.to(self.device)
+            for noisy_image, gt_image in self.train_loader:
+                noisy_image = noisy_image.to(device)
+                gt_image = gt_image.to(device)
                 gt_image = gt_image.view(-1, 784)
 
-                latent = self.encoder(noise_image)
+                latent = self.encoder(noisy_image)
                 output = self.decoder(latent)
 
                 loss = loss_function(output, gt_image)
@@ -184,7 +187,9 @@ class Autoencoder:
                 optimizer.step()
 
     @no_grad()
-    def test(self) -> float:
+    def test(self, device: str) -> float:
+        self.encoder.to(device)
+        self.decoder.to(device)
         self.encoder.eval()
         self.decoder.eval()
 
@@ -192,8 +197,8 @@ class Autoencoder:
         loss_function = MSELoss()
 
         for noise_image, gt_image in self.test_loader:
-            noise_image = noise_image.to(self.device)
-            gt_image = gt_image.to(self.device)
+            noise_image = noise_image.to(device)
+            gt_image = gt_image.to(device)
             gt_image = gt_image.view(-1, 784)
 
             latent = self.encoder(noise_image)
