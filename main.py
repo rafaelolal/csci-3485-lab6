@@ -41,28 +41,27 @@ def qualitative_test(device, noise, autoencoder, unet):
 
         encoded = autoencoder.encoder(noisy_image)
         decoded = autoencoder.decoder(encoded)
-        decoded = decoded[0]
 
         unet_output = unet.model(noisy_image)
-        unet_output = unet_output[0]
-
-        gt_image = gt_image[0]
 
         pre = f"{noise} {i} "
+
+        save_image(noisy_image[0], f"{pre} Noisy Image", "./images")
+        
         save_image(
-            gt_image,
+            gt_image[0],
             f"{pre} Ground Truth",
             "./images",
         )
 
         save_image(
-            decoded,
+            decoded[0],
             f"{pre} Autoencoder",
             "./images",
         )
 
         save_image(
-            unet_output,
+            unet_output[0],
             f"{pre} UNet",
             "./images",
         )
