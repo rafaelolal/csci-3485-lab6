@@ -4,6 +4,7 @@ Defines a helper Model class to manage the setup, training, and testing of all m
 
 from torch import Tensor, cat, no_grad
 from torch.nn import (
+    BatchNorm2d,
     Conv2d,
     ConvTranspose2d,
     Flatten,
@@ -14,7 +15,6 @@ from torch.nn import (
     ReLU,
     Sequential,
     Sigmoid,
-    BatchNorm2d
 )
 from torch.optim import Adam
 from torchvision.transforms import ToTensor
@@ -28,64 +28,97 @@ class UNetModel(Module):
 
         self.max_pool = MaxPool2d(2)
 
-        # Original downsampling convolutions (with BatchNorm2d for stability)
-        self.down1 = Sequential(Conv2d(1, 4, 3, padding=1), BatchNorm2d(4), ReLU())
-        self.down2 = Sequential(Conv2d(4, 4, 3, padding=1), BatchNorm2d(4), ReLU())
+        # downsampling convolutions
+        self.down1 = Sequential(
+            Conv2d(1, 4, 3, padding=1),
+            BatchNorm2d(4),
+            ReLU(),
+            Conv2d(4, 4, 3, padding=1),
+            BatchNorm2d(4),
+            ReLU(),
+        )
 
-        self.down3 = Sequential(Conv2d(4, 8, 3, padding=1), BatchNorm2d(8), ReLU())
-        self.down4 = Sequential(Conv2d(8, 8, 3, padding=1), BatchNorm2d(8), ReLU())
+        self.down2 = Sequential(
+            Conv2d(4, 8, 3, padding=1),
+            BatchNorm2d(8),
+            ReLU(),
+            Conv2d(8, 8, 3, padding=1),
+            BatchNorm2d(8),
+            ReLU(),
+        )
 
-        self.down5 = Sequential(Conv2d(8, 16, 3, padding=1), BatchNorm2d(16), ReLU())
-        self.down6 = Sequential(Conv2d(16, 16, 3, padding=1), BatchNorm2d(16), ReLU())
+        self.down3 = Sequential(
+            Conv2d(8, 16, 3, padding=1),
+            BatchNorm2d(16),
+            ReLU(),
+            Conv2d(16, 16, 3, padding=1),
+            BatchNorm2d(16),
+            ReLU(),
+        )
 
-        # New deeper downsampling level
-        self.down7 = Sequential(Conv2d(16, 32, 3, padding=1), BatchNorm2d(32), ReLU())
-        self.down8 = Sequential(Conv2d(32, 32, 3, padding=1), BatchNorm2d(32), ReLU())
+        self.down4 = Sequential(
+            Conv2d(16, 32, 3, padding=1),
+            BatchNorm2d(32),
+            ReLU(),
+            Conv2d(32, 32, 3, padding=1),
+            BatchNorm2d(32),
+            ReLU(),
+        )
 
-        # Upsampling transposed convolutions and convolutions
-        self.up_transpose1 = ConvTranspose2d(32, 16, 2, stride=2)
-        self.up1 = Sequential(Conv2d(32, 16, 3, padding=1), BatchNorm2d(16), ReLU())
-        self.up2 = Sequential(Conv2d(16, 16, 3, padding=1), BatchNorm2d(16), ReLU())
+        # upsampling transposed convolutions
+        self.up_transpose1 = ConvTranspose2d(
+            32, 16, kernel_size=2, stride=2, output_padding=1
+        )
+        self.up1 = Sequential(
+            Conv2d(32, 16, 3, padding=1),
+            BatchNorm2d(16),
+            ReLU(),
+            Conv2d(16, 16, 3, padding=1),
+            BatchNorm2d(16),
+            ReLU(),
+        )
 
-        self.up_transpose2 = ConvTranspose2d(16, 8, 2, stride=2)
-        self.up3 = Sequential(Conv2d(16, 8, 3, padding=1), BatchNorm2d(8), ReLU())
-        self.up4 = Sequential(Conv2d(8, 8, 3, padding=1), BatchNorm2d(8), ReLU())
+        self.up_transpose2 = ConvTranspose2d(16, 8, kernel_size=2, stride=2)
+        self.up3 = Sequential(
+            Conv2d(16, 8, 3, padding=1),
+            BatchNorm2d(8),
+            ReLU(),
+            Conv2d(8, 8, 3, padding=1),
+            BatchNorm2d(8),
+            ReLU(),
+        )
 
-        self.up_transpose3 = ConvTranspose2d(8, 4, 2, stride=2)
-        self.up5 = Sequential(Conv2d(8, 4, 3, padding=1), BatchNorm2d(4), ReLU())
-        self.up6 = Sequential(Conv2d(4, 1, 3, padding=1), ReLU())  # Final layer: no BatchNorm for the output
+        self.up_transpose3 = ConvTranspose2d(8, 4, kernel_size=2, stride=2)
+        self.up5 = Sequential(
+            Conv2d(8, 4, 3, padding=1),
+            BatchNorm2d(4),
+            ReLU(),
+            Conv2d(4, 4, 3, padding=1),
+            BatchNorm2d(4),
+            ReLU(),
+        )
+
+        # final layer with Sigmoid for normalized output
+        self.up6 = Sequential(Conv2d(4, 1, 3, padding=1), Sigmoid())
 
     def forward(self, x) -> Tensor:
-        # Downsampling path
+        # downsampling path
         x1 = self.down1(x)
-        x1 = self.down2(x1)
+        x2 = self.down2(self.max_pool(x1))
+        x3 = self.down3(self.max_pool(x2))
+        x4 = self.down4(self.max_pool(x3))
 
-        x2 = self.max_pool(x1)
-        x2 = self.down3(x2)
-        x2 = self.down4(x2)
-
-        x3 = self.max_pool(x2)
-        x3 = self.down5(x3)
-        x3 = self.down6(x3)
-
-        # New deeper downsampling level
-        x4 = self.max_pool(x3)
-        x4 = self.down7(x4)
-        x4 = self.down8(x4)
-
-        # Upsampling path with skip connections
+        # upsampling path with skip connections
         x5 = self.up_transpose1(x4)
-        x5 = cat([x5, x3], dim=1)  # Skip connection
+        x5 = cat([x5, x3], dim=1)
         x5 = self.up1(x5)
-        x5 = self.up2(x5)
 
         x6 = self.up_transpose2(x5)
-        x6 = cat([x6, x2], dim=1)  # Skip connection
+        x6 = cat([x6, x2], dim=1)
         x6 = self.up3(x6)
-        x6 = self.up4(x6)
 
         x7 = self.up_transpose3(x6)
-        x7 = cat([x7, x1], dim=1)  # Skip connection
+        x7 = cat([x7, x1], dim=1)
         x7 = self.up5(x7)
         x7 = self.up6(x7)
 
@@ -190,7 +223,7 @@ class Autoencoder:
             for noisy_image, gt_image in self.train_loader:
                 noisy_image = noisy_image.to(device)
                 gt_image = gt_image.to(device)
-                gt_image = gt_image.view(-1, 784)
+                gt_image = gt_image.view(-1, 28 * 28)
 
                 latent = self.encoder(noisy_image)
                 output = self.decoder(latent)
@@ -213,7 +246,7 @@ class Autoencoder:
         for noise_image, gt_image in self.test_loader:
             noise_image = noise_image.to(device)
             gt_image = gt_image.to(device)
-            gt_image = gt_image.view(-1, 784)
+            gt_image = gt_image.view(-1, 28 * 28)
 
             latent = self.encoder(noise_image)
             output = self.decoder(latent)

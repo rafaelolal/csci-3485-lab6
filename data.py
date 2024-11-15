@@ -47,6 +47,8 @@ class NoisyMNISTDataset(Dataset):
 
         return noisy_image, image
 
+    def __len__(self) -> int:
+        return len(self.dataset)
 
 
 def get_data_loaders(
@@ -54,8 +56,6 @@ def get_data_loaders(
     size: int,
     transform: list = [],
 ) -> tuple[DataLoader, DataLoader]:
-    # Ensure noise level is within the valid range
-    assert 0 <= noise <= 1, "Noise level (mu) must be between 0 and 1."
 
     test_dataset = NoisyMNISTDataset(
         noise=noise,
@@ -70,11 +70,10 @@ def get_data_loaders(
         train=True,
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=32)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=64)
 
     return train_loader, test_loader
-
 
 
 def append_to_file(filename: str, data: any) -> None:
@@ -97,6 +96,6 @@ def save_image(image, title, folder):
     plt.axis("off")
 
     # save the image
-    filename = f"{title.lower().replace(" ", "_")}.png"
+    filename = f"{title.lower().replace(' ', '_')}.png"
     plt.savefig(path.join(folder, filename))
     plt.close()
