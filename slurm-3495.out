@@ -37,3 +37,8 @@ Downloading https://ossci-datasets.s3.amazonaws.com/mnist/t10k-labels-idx1-ubyte
 Extracting ./data/MNIST/MNIST/raw/t10k-labels-idx1-ubyte.gz to ./data/MNIST/MNIST/raw
 
 UNet Model Summary
+[main 70df2d0] Finish lab6 job
+ 31 files changed, 55 insertions(+), 3 deletions(-)
+ create mode 100644 slurm-3495.out
+To github.com:rafaelolal/csci-3485-lab6.git
+   60a5c99..70df2d0  main -> main
