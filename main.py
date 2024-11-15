@@ -32,8 +32,8 @@ for noise in noise_levels:
 
     if noise == noise_levels[0]:
         print("Autoencoder Model Summary")
-        summary(autoencoder.encoder, (1, 28, 28))
-        summary(autoencoder.decoder, (1, 28, 28))
+        # summary(autoencoder.encoder, (1, 28, 28))
+        # summary(autoencoder.decoder, (1, 28, 28))
 
     autoencoder.set_data(noise=noise, size=data_size)
     autoencoder.train(device=device, epochs=10)
@@ -50,7 +50,7 @@ for noise in noise_levels:
 
     if noise == noise_levels[0]:
         print("UNet Model Summary")
-        summary(unet.model, (1, 28, 28))
+        # summary(unet.model, (1, 28, 28))
 
     unet.set_data(noise=noise, size=data_size)
     unet.my_train(device=device, epochs=10)
