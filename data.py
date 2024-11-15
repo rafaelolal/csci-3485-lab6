@@ -38,10 +38,11 @@ class NoisyMNISTDataset(Dataset):
     def __getitem__(self, i) -> tuple[Tensor, Tensor]:
         image, label = self.dataset[i]
 
-        # generate noise of same image size scaled by self.noise
-        noise = randn_like(image) * self.noise
-        noisy_image = image + noise
-        # maintain range from 0-1
+        # Generate noise with the same shape as the image
+        noise = randn_like(image)
+
+        # Apply noise using the formula: Y = (1 - mu) * I + mu * N
+        noisy_image = (1 - self.noise) * image + self.noise * noise
         noisy_image = clamp(noisy_image, 0, 1)
 
         return noisy_image, image
@@ -54,7 +55,8 @@ def get_data_loaders(
     noise: float,
     size: int,
     transform: list = [],
-) -> tuple[DataLoader]:
+) -> tuple[DataLoader, DataLoader]:
+
     test_dataset = NoisyMNISTDataset(
         noise=noise,
         transform=transform,
@@ -68,8 +70,8 @@ def get_data_loaders(
         train=True,
     )
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=32)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=64)
 
     return train_loader, test_loader
 
@@ -94,6 +96,6 @@ def save_image(image, title, folder):
     plt.axis("off")
 
     # save the image
-    filename = f"{title.lower().replace(" ", "_")}.png"
+    filename = f"{title.lower().replace(' ', '_')}.png"
     plt.savefig(path.join(folder, filename))
     plt.close()

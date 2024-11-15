@@ -4,6 +4,7 @@ Defines a helper Model class to manage the setup, training, and testing of all m
 
 from torch import Tensor, cat, no_grad
 from torch.nn import (
+    BatchNorm2d,
     Conv2d,
     ConvTranspose2d,
     Flatten,
@@ -25,57 +26,103 @@ class UNetModel(Module):
     def __init__(self) -> None:
         super().__init__()
 
-        self.relu = ReLU()
         self.max_pool = MaxPool2d(2)
 
-        self.cl1 = Conv2d(1, 4, 3, padding=1)
-        self.cl2 = Conv2d(4, 4, 3, padding=1)
+        # downsampling convolutions
+        self.down1 = Sequential(
+            Conv2d(1, 4, 3, padding=1),
+            BatchNorm2d(4),
+            ReLU(),
+            Conv2d(4, 4, 3, padding=1),
+            BatchNorm2d(4),
+            ReLU(),
+        )
 
-        self.cl3 = Conv2d(4, 8, 3, padding=1)
-        self.cl4 = Conv2d(8, 8, 3, padding=1)
+        self.down2 = Sequential(
+            Conv2d(4, 8, 3, padding=1),
+            BatchNorm2d(8),
+            ReLU(),
+            Conv2d(8, 8, 3, padding=1),
+            BatchNorm2d(8),
+            ReLU(),
+        )
 
-        self.cl5 = Conv2d(8, 16, 3, padding=1)
-        self.cl6 = Conv2d(16, 16, 3, padding=1)
+        self.down3 = Sequential(
+            Conv2d(8, 16, 3, padding=1),
+            BatchNorm2d(16),
+            ReLU(),
+            Conv2d(16, 16, 3, padding=1),
+            BatchNorm2d(16),
+            ReLU(),
+        )
 
-        self.tc1 = ConvTranspose2d(16, 8, 2, stride=2)
+        self.down4 = Sequential(
+            Conv2d(16, 32, 3, padding=1),
+            BatchNorm2d(32),
+            ReLU(),
+            Conv2d(32, 32, 3, padding=1),
+            BatchNorm2d(32),
+            ReLU(),
+        )
 
-        self.cl7 = Conv2d(16, 8, 3, padding=1)
-        self.cl8 = Conv2d(8, 8, 3, padding=1)
+        # upsampling transposed convolutions
+        self.up_transpose1 = ConvTranspose2d(
+            32, 16, kernel_size=2, stride=2, output_padding=1
+        )
+        self.up1 = Sequential(
+            Conv2d(32, 16, 3, padding=1),
+            BatchNorm2d(16),
+            ReLU(),
+            Conv2d(16, 16, 3, padding=1),
+            BatchNorm2d(16),
+            ReLU(),
+        )
 
-        self.tc2 = ConvTranspose2d(8, 4, 2, stride=2)
+        self.up_transpose2 = ConvTranspose2d(16, 8, kernel_size=2, stride=2)
+        self.up3 = Sequential(
+            Conv2d(16, 8, 3, padding=1),
+            BatchNorm2d(8),
+            ReLU(),
+            Conv2d(8, 8, 3, padding=1),
+            BatchNorm2d(8),
+            ReLU(),
+        )
 
-        self.cl9 = Conv2d(8, 4, 3, padding=1)
-        self.cl10 = Conv2d(4, 1, 3, padding=1)
+        self.up_transpose3 = ConvTranspose2d(8, 4, kernel_size=2, stride=2)
+        self.up5 = Sequential(
+            Conv2d(8, 4, 3, padding=1),
+            BatchNorm2d(4),
+            ReLU(),
+            Conv2d(4, 4, 3, padding=1),
+            BatchNorm2d(4),
+            ReLU(),
+        )
+
+        # final layer with Sigmoid for normalized output
+        self.up6 = Sequential(Conv2d(4, 1, 3, padding=1), Sigmoid())
 
     def forward(self, x) -> Tensor:
-        x1 = self.relu(self.cl1(x))
-        x1 = self.relu(self.cl2(x1))
+        # downsampling path
+        x1 = self.down1(x)
+        x2 = self.down2(self.max_pool(x1))
+        x3 = self.down3(self.max_pool(x2))
+        x4 = self.down4(self.max_pool(x3))
 
-        x2 = self.max_pool(x1)
+        # upsampling path with skip connections
+        x5 = self.up_transpose1(x4)
+        x5 = cat([x5, x3], dim=1)
+        x5 = self.up1(x5)
 
-        x2 = self.relu(self.cl3(x2))
-        x2 = self.relu(self.cl4(x2))
+        x6 = self.up_transpose2(x5)
+        x6 = cat([x6, x2], dim=1)
+        x6 = self.up3(x6)
 
-        x3 = self.max_pool(x2)
+        x7 = self.up_transpose3(x6)
+        x7 = cat([x7, x1], dim=1)
+        x7 = self.up5(x7)
+        x7 = self.up6(x7)
 
-        x3 = self.relu(self.cl5(x3))
-        x3 = self.relu(self.cl6(x3))
-
-        x4 = self.tc1(x3)
-
-        x4 = cat([x4, x2], dim=1)
-
-        x4 = self.relu(self.cl7(x4))
-        x4 = self.relu(self.cl8(x4))
-
-        x5 = self.tc2(x4)
-
-        x5 = cat([x5, x1], dim=1)
-
-        x5 = self.relu(self.cl9(x5))
-        x5 = self.relu(self.cl10(x5))
-
-        return x5
+        return x7
 
 
 class UNet:
@@ -176,7 +223,7 @@ class Autoencoder:
             for noisy_image, gt_image in self.train_loader:
                 noisy_image = noisy_image.to(device)
                 gt_image = gt_image.to(device)
-                gt_image = gt_image.view(-1, 784)
+                gt_image = gt_image.view(-1, 28 * 28)
 
                 latent = self.encoder(noisy_image)
                 output = self.decoder(latent)
@@ -199,7 +246,7 @@ class Autoencoder:
         for noise_image, gt_image in self.test_loader:
             noise_image = noise_image.to(device)
             gt_image = gt_image.to(device)
-            gt_image = gt_image.view(-1, 784)
+            gt_image = gt_image.view(-1, 28 * 28)
 
             latent = self.encoder(noise_image)
             output = self.decoder(latent)
