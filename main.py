@@ -88,6 +88,9 @@ for noise in noise_levels:
             gt_image = gt_image[0]
 
             pre = f"{noise} {i} "
+
+            save_image(noisy_image, f"{pre} Noisy Image", "./images")
+
             save_image(
                 gt_image,
                 f"{pre} Ground Truth",
