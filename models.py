@@ -14,6 +14,7 @@ from torch.nn import (
     ReLU,
     Sequential,
     Sigmoid,
+    BatchNorm2d
 )
 from torch.optim import Adam
 from torchvision.transforms import ToTensor
@@ -25,57 +26,70 @@ class UNetModel(Module):
     def __init__(self) -> None:
         super().__init__()
 
-        self.relu = ReLU()
         self.max_pool = MaxPool2d(2)
 
-        self.cl1 = Conv2d(1, 4, 3, padding=1)
-        self.cl2 = Conv2d(4, 4, 3, padding=1)
+        # Original downsampling convolutions (with BatchNorm2d for stability)
+        self.down1 = Sequential(Conv2d(1, 4, 3, padding=1), BatchNorm2d(4), ReLU())
+        self.down2 = Sequential(Conv2d(4, 4, 3, padding=1), BatchNorm2d(4), ReLU())
 
-        self.cl3 = Conv2d(4, 8, 3, padding=1)
-        self.cl4 = Conv2d(8, 8, 3, padding=1)
+        self.down3 = Sequential(Conv2d(4, 8, 3, padding=1), BatchNorm2d(8), ReLU())
+        self.down4 = Sequential(Conv2d(8, 8, 3, padding=1), BatchNorm2d(8), ReLU())
 
-        self.cl5 = Conv2d(8, 16, 3, padding=1)
-        self.cl6 = Conv2d(16, 16, 3, padding=1)
+        self.down5 = Sequential(Conv2d(8, 16, 3, padding=1), BatchNorm2d(16), ReLU())
+        self.down6 = Sequential(Conv2d(16, 16, 3, padding=1), BatchNorm2d(16), ReLU())
 
-        self.tc1 = ConvTranspose2d(16, 8, 2, stride=2)
+        # New deeper downsampling level
+        self.down7 = Sequential(Conv2d(16, 32, 3, padding=1), BatchNorm2d(32), ReLU())
+        self.down8 = Sequential(Conv2d(32, 32, 3, padding=1), BatchNorm2d(32), ReLU())
 
-        self.cl7 = Conv2d(16, 8, 3, padding=1)
-        self.cl8 = Conv2d(8, 8, 3, padding=1)
+        # Upsampling transposed convolutions and convolutions
+        self.up_transpose1 = ConvTranspose2d(32, 16, 2, stride=2)
+        self.up1 = Sequential(Conv2d(32, 16, 3, padding=1), BatchNorm2d(16), ReLU())
+        self.up2 = Sequential(Conv2d(16, 16, 3, padding=1), BatchNorm2d(16), ReLU())
 
-        self.tc2 = ConvTranspose2d(8, 4, 2, stride=2)
+        self.up_transpose2 = ConvTranspose2d(16, 8, 2, stride=2)
+        self.up3 = Sequential(Conv2d(16, 8, 3, padding=1), BatchNorm2d(8), ReLU())
+        self.up4 = Sequential(Conv2d(8, 8, 3, padding=1), BatchNorm2d(8), ReLU())
 
-        self.cl9 = Conv2d(8, 4, 3, padding=1)
-        self.cl10 = Conv2d(4, 1, 3, padding=1)
+        self.up_transpose3 = ConvTranspose2d(8, 4, 2, stride=2)
+        self.up5 = Sequential(Conv2d(8, 4, 3, padding=1), BatchNorm2d(4), ReLU())
+        self.up6 = Sequential(Conv2d(4, 1, 3, padding=1), ReLU())  # Final layer: no BatchNorm for the output
 
     def forward(self, x) -> Tensor:
-        x1 = self.relu(self.cl1(x))
-        x1 = self.relu(self.cl2(x1))
+        # Downsampling path
+        x1 = self.down1(x)
+        x1 = self.down2(x1)
 
         x2 = self.max_pool(x1)
-
-        x2 = self.relu(self.cl3(x2))
-        x2 = self.relu(self.cl4(x2))
+        x2 = self.down3(x2)
+        x2 = self.down4(x2)
 
         x3 = self.max_pool(x2)
+        x3 = self.down5(x3)
+        x3 = self.down6(x3)
 
-        x3 = self.relu(self.cl5(x3))
-        x3 = self.relu(self.cl6(x3))
+        # New deeper downsampling level
+        x4 = self.max_pool(x3)
+        x4 = self.down7(x4)
+        x4 = self.down8(x4)
 
-        x4 = self.tc1(x3)
+        # Upsampling path with skip connections
+        x5 = self.up_transpose1(x4)
+        x5 = cat([x5, x3], dim=1)  # Skip connection
+        x5 = self.up1(x5)
+        x5 = self.up2(x5)
 
-        x4 = cat([x4, x2], dim=1)
+        x6 = self.up_transpose2(x5)
+        x6 = cat([x6, x2], dim=1)  # Skip connection
+        x6 = self.up3(x6)
+        x6 = self.up4(x6)
 
-        x4 = self.relu(self.cl7(x4))
-        x4 = self.relu(self.cl8(x4))
+        x7 = self.up_transpose3(x6)
+        x7 = cat([x7, x1], dim=1)  # Skip connection
+        x7 = self.up5(x7)
+        x7 = self.up6(x7)
 
-        x5 = self.tc2(x4)
-
-        x5 = cat([x5, x1], dim=1)
-
-        x5 = self.relu(self.cl9(x5))
-        x5 = self.relu(self.cl10(x5))
-
-        return x5
+        return x7
 
 
 class UNet:

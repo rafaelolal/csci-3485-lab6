@@ -38,23 +38,25 @@ class NoisyMNISTDataset(Dataset):
     def __getitem__(self, i) -> tuple[Tensor, Tensor]:
         image, label = self.dataset[i]
 
-        # generate noise of same image size scaled by self.noise
-        noise = randn_like(image) * self.noise
-        noisy_image = image + noise
-        # maintain range from 0-1
+        # Generate noise with the same shape as the image
+        noise = randn_like(image)
+
+        # Apply noise using the formula: Y = (1 - mu) * I + mu * N
+        noisy_image = (1 - self.noise) * image + self.noise * noise
         noisy_image = clamp(noisy_image, 0, 1)
 
         return noisy_image, image
 
-    def __len__(self) -> int:
-        return len(self.dataset)
 
 
 def get_data_loaders(
     noise: float,
     size: int,
     transform: list = [],
-) -> tuple[DataLoader]:
+) -> tuple[DataLoader, DataLoader]:
+    # Ensure noise level is within the valid range
+    assert 0 <= noise <= 1, "Noise level (mu) must be between 0 and 1."
+
     test_dataset = NoisyMNISTDataset(
         noise=noise,
         transform=transform,
@@ -72,6 +74,7 @@ def get_data_loaders(
     test_loader = DataLoader(test_dataset, batch_size=32)
 
     return train_loader, test_loader
+
 
 
 def append_to_file(filename: str, data: any) -> None:
